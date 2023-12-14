@@ -38,7 +38,7 @@ typedef struct {
     ViewPort* view_port; // Input and draw callbacks
     Gui* gui; // Fullscreen view
 
-    TestAppState state;
+    TestAppState state; // Application data
 } TestApp;
 
 static void my_draw_callback(Canvas* canvas, void* context) {
@@ -76,7 +76,7 @@ static void my_input_callback(InputEvent* input_event, void* context) {
             event.type = MyEventTypeDone;
             furi_message_queue_put(app->queue, &event, FuriWaitForever);
         }
-    } else if (input_event->type == InputTypeLong) {
+    } else if(input_event->type == InputTypeLong) {
         int longDistance = 10;
         if(input_event->key == InputKeyLeft) app->state.x = app->state.x - longDistance;
         if(input_event->key == InputKeyRight) app->state.x = app->state.x + longDistance;
@@ -85,16 +85,16 @@ static void my_input_callback(InputEvent* input_event, void* context) {
         if(input_event->key == InputKeyOk && !app->state.isRunning) app->state.time = 0;
     }
 
-    if (app->state.x > DISPLAY_WIDTH) app->state.x = DISPLAY_WIDTH;
-    if (app->state.x < 0) app->state.x = 0;
-    if (app->state.y > DISPLAY_HEIGHT) app->state.y = DISPLAY_HEIGHT;
-    if (app->state.y < 0) app->state.y = 0;
+    if(app->state.x > DISPLAY_WIDTH) app->state.x = DISPLAY_WIDTH;
+    if(app->state.x < 0) app->state.x = 0;
+    if(app->state.y > DISPLAY_HEIGHT) app->state.y = DISPLAY_HEIGHT;
+    if(app->state.y < 0) app->state.y = 0;
 }
 
 static void timer_callback(void* context) {
     TestApp* app = (TestApp*)context;
 
-    if (app->state.isRunning) {
+    if(app->state.isRunning) {
         app->state.time++;
     }
 }
@@ -102,29 +102,43 @@ static void timer_callback(void* context) {
 int32_t mytestapp_app(void* p) {
     UNUSED(p);
 
+    // ---------------
+    //      Init
+    // ---------------
     TestApp* app = (TestApp*)malloc(sizeof(TestApp));
 
+    // Create event queue
     app->queue = furi_message_queue_alloc(8, sizeof(MyEvent));
 
+    // Create view port
     app->view_port = view_port_alloc();
     view_port_draw_callback_set(app->view_port, my_draw_callback, app);
     view_port_input_callback_set(app->view_port, my_input_callback, app);
     view_port_set_orientation(app->view_port, ViewPortOrientationHorizontal);
 
+    // Create gui
     app->gui = furi_record_open(RECORD_GUI);
     gui_add_view_port(app->gui, app->view_port, GuiLayerFullscreen);
 
-    app->notifications = furi_record_open(RECORD_NOTIFICATION);
-    notification_message(app->notifications, &sequence_display_backlight_enforce_on);
-
+    // Create timer
     app->timer = furi_timer_alloc(timer_callback, FuriTimerTypePeriodic, app);
     furi_timer_start(app->timer, 1);
 
+    // Enforce backlight on
+    app->notifications = furi_record_open(RECORD_NOTIFICATION);
+    notification_message(app->notifications, &sequence_display_backlight_enforce_on);
+
+    // ---------------
+    //      Setup
+    // ---------------
     app->state.x = 2;
     app->state.y = 5;
     app->state.time = 0;
     app->state.isRunning = false;
 
+    // ---------------
+    //    Main loop
+    // ---------------
     MyEvent event;
     while(true) {
         if(furi_message_queue_get(app->queue, &event, FuriWaitForever) == FuriStatusOk) {
@@ -136,15 +150,22 @@ int32_t mytestapp_app(void* p) {
         }
     }
 
+    // ---------------
+    //     Cleanup
+    // ---------------
+
+    // Set backlight back to auto
     notification_message(app->notifications, &sequence_display_backlight_enforce_auto);
 
-    furi_record_close(RECORD_NOTIFICATION);
+    // Free resources
     furi_timer_free(app->timer);
     furi_message_queue_free(app->queue);
     view_port_enabled_set(app->view_port, false);
     gui_remove_view_port(app->gui, app->view_port);
-    furi_record_close(RECORD_GUI);
     view_port_free(app->view_port);
+    furi_record_close(RECORD_NOTIFICATION);
+    furi_record_close(RECORD_GUI);
+    free(app);
 
     return 0;
 }
