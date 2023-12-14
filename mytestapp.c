@@ -18,16 +18,16 @@ typedef struct {
     InputEvent input; // This data is specific to keypress data.
 } MyEvent;
 
+FuriMessageQueue* queue;
+
 int xLimitLow = -2;
 int yLimitLow = 8;
 int xLimitHigh = 126;
 int yLimitHigh = 72;
 
-FuriMessageQueue* queue;
 int x = 2;
 int y = 8;
 
-FuriTimer* timer;
 int time = 0;
 bool isRunning = false;
 
@@ -74,6 +74,7 @@ static void my_input_callback(InputEvent* input_event, void* context) {
         if(input_event->key == InputKeyDown) y = y + longDistance;
         if(input_event->key == InputKeyOk && !isRunning) time = 0;
     }
+
     if (x > xLimitHigh) x = xLimitHigh;
     if (x < xLimitLow) x = xLimitLow;
     if (y > yLimitHigh) y = yLimitHigh;
@@ -104,24 +105,25 @@ int32_t mytestapp_app(void* p) {
 
     NotificationApp* notifications = furi_record_open(RECORD_NOTIFICATION);
     notification_message(notifications, &sequence_display_backlight_enforce_on);
-    
+
     FuriTimer* timer = furi_timer_alloc(timer_callback, FuriTimerTypePeriodic, queue);
     furi_timer_start(timer, 1);
 
     MyEvent event;
-    bool keep_processing = true;
-    while(keep_processing) {
+
+    while(true) {
         if(furi_message_queue_get(queue, &event, FuriWaitForever) == FuriStatusOk) {
             if(event.type == MyEventTypeDone) {
-                keep_processing = false;
+                break;
             }
         } else {
-            keep_processing = false;
+            break;
         }
     }
-    
+
     notification_message(notifications, &sequence_display_backlight_enforce_auto);
 
+    furi_record_close(RECORD_NOTIFICATION);
     furi_timer_free(timer);
     furi_message_queue_free(queue);
     view_port_enabled_set(view_port, false);
