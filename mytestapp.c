@@ -32,9 +32,16 @@ typedef struct {
     int x;
     int y;
 
+    // Direction of movement
+    int xDirection;
+    int yDirection;
+
     // Timer
-    int time;
+    int timer;
     bool isRunning;
+
+    // Time of run (ms)
+    int time;
 } TestAppState;
 
 typedef struct {
@@ -53,10 +60,11 @@ static void set_pin_states(bool isOn) {
 }
 
 static void my_draw_callback(Canvas* canvas, void* context) {
+    furi_assert(context);
     TestApp* app = (TestApp*)context;
 
-    char str_time[11];
-    itoa(app->state.time, str_time, 10);
+    char str_timer[11];
+    itoa(app->state.timer, str_timer, 10);
     char str_x[11];
     itoa(app->state.x, str_x, 10);
     char str_y[11];
@@ -65,7 +73,7 @@ static void my_draw_callback(Canvas* canvas, void* context) {
     canvas_set_font(canvas, FontPrimary);
     canvas_draw_str(canvas, 5, 30, "Ahoj!");
     canvas_draw_str(canvas, 5, 40, "T:");
-    canvas_draw_str(canvas, 17, 40, str_time);
+    canvas_draw_str(canvas, 17, 40, str_timer);
     canvas_draw_str(canvas, 5, 50, "X:");
     canvas_draw_str(canvas, 17, 50, str_x);
     canvas_draw_str(canvas, 45, 50, "Y:");
@@ -74,13 +82,10 @@ static void my_draw_callback(Canvas* canvas, void* context) {
 }
 
 static void my_input_callback(InputEvent* input_event, void* context) {
+    furi_assert(context);
     TestApp* app = (TestApp*)context;
 
     if(input_event->type == InputTypeShort) {
-        if(input_event->key == InputKeyLeft) app->state.x--;
-        if(input_event->key == InputKeyRight) app->state.x++;
-        if(input_event->key == InputKeyUp) app->state.y--;
-        if(input_event->key == InputKeyDown) app->state.y++;
         if(input_event->key == InputKeyOk) {
             app->state.isRunning = !app->state.isRunning;
             set_pin_states(app->state.isRunning);
@@ -90,13 +95,18 @@ static void my_input_callback(InputEvent* input_event, void* context) {
             event.type = MyEventTypeDone;
             furi_message_queue_put(app->queue, &event, FuriWaitForever);
         }
-    } else if(input_event->type == InputTypeLong) {
-        int longDistance = 10;
-        if(input_event->key == InputKeyLeft) app->state.x = app->state.x - longDistance;
-        if(input_event->key == InputKeyRight) app->state.x = app->state.x + longDistance;
-        if(input_event->key == InputKeyUp) app->state.y = app->state.y - longDistance;
-        if(input_event->key == InputKeyDown) app->state.y = app->state.y + longDistance;
-        if(input_event->key == InputKeyOk && !app->state.isRunning) app->state.time = 0;
+    } else if(input_event->type == InputTypePress) {
+        if(input_event->key == InputKeyLeft) app->state.xDirection = -1;
+        if(input_event->key == InputKeyRight) app->state.xDirection = 1;
+        if(input_event->key == InputKeyUp) app->state.yDirection = -1;
+        if(input_event->key == InputKeyDown) app->state.yDirection = 1;
+    } else if(input_event->type == InputTypeRelease) {
+        if(input_event->key == InputKeyLeft || input_event->key == InputKeyRight) {
+            app->state.xDirection = 0;
+        }
+        if(input_event->key == InputKeyUp || input_event->key == InputKeyDown) {
+            app->state.yDirection = 0;
+        }
     }
 
     if(app->state.x > DISPLAY_WIDTH) app->state.x = DISPLAY_WIDTH;
@@ -106,11 +116,23 @@ static void my_input_callback(InputEvent* input_event, void* context) {
 }
 
 static void timer_callback(void* context) {
+    furi_assert(context);
     TestApp* app = (TestApp*)context;
 
-    if(app->state.isRunning) {
-        app->state.time++;
+    if(app->state.time % 60 == 0) {
+        app->state.x = app->state.x + app->state.xDirection;
+        app->state.y = app->state.y + app->state.yDirection;
     }
+
+    if(app->state.x > DISPLAY_WIDTH) app->state.x = DISPLAY_WIDTH;
+    if(app->state.x < 0) app->state.x = 0;
+    if(app->state.y > DISPLAY_HEIGHT) app->state.y = DISPLAY_HEIGHT;
+    if(app->state.y < 0) app->state.y = 0;
+
+    if(app->state.isRunning) {
+        app->state.timer += 10;
+    }
+    app->state.time += 10;
 }
 
 int32_t mytestapp_app(void* p) {
@@ -136,7 +158,7 @@ int32_t mytestapp_app(void* p) {
 
     // Create timer
     app->timer = furi_timer_alloc(timer_callback, FuriTimerTypePeriodic, app);
-    furi_timer_start(app->timer, 1);
+    furi_timer_start(app->timer, 10);
 
     // Enforce backlight on
     app->notifications = furi_record_open(RECORD_NOTIFICATION);
@@ -151,6 +173,8 @@ int32_t mytestapp_app(void* p) {
     // ---------------
     app->state.x = 2;
     app->state.y = 5;
+    app->state.xDirection = 0;
+    app->state.yDirection = 0;
     app->state.time = 0;
     app->state.isRunning = false;
     set_pin_states(app->state.isRunning);
