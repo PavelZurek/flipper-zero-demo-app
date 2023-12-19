@@ -108,11 +108,6 @@ static void my_input_callback(InputEvent* input_event, void* context) {
             app->state.yDirection = 0;
         }
     }
-
-    if(app->state.x > DISPLAY_WIDTH) app->state.x = DISPLAY_WIDTH;
-    if(app->state.x < 0) app->state.x = 0;
-    if(app->state.y > DISPLAY_HEIGHT) app->state.y = DISPLAY_HEIGHT;
-    if(app->state.y < 0) app->state.y = 0;
 }
 
 static void timer_callback(void* context) {
@@ -122,12 +117,12 @@ static void timer_callback(void* context) {
     if(app->state.time % 60 == 0) {
         app->state.x = app->state.x + app->state.xDirection;
         app->state.y = app->state.y + app->state.yDirection;
-    }
 
-    if(app->state.x > DISPLAY_WIDTH) app->state.x = DISPLAY_WIDTH;
-    if(app->state.x < 0) app->state.x = 0;
-    if(app->state.y > DISPLAY_HEIGHT) app->state.y = DISPLAY_HEIGHT;
-    if(app->state.y < 0) app->state.y = 0;
+        if(app->state.x > DISPLAY_WIDTH) app->state.x = DISPLAY_WIDTH;
+        if(app->state.x < 0) app->state.x = 0;
+        if(app->state.y > DISPLAY_HEIGHT) app->state.y = DISPLAY_HEIGHT;
+        if(app->state.y < 0) app->state.y = 0;
+    }
 
     if(app->state.isRunning) {
         app->state.timer += 10;
